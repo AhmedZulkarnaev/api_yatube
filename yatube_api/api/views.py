@@ -9,36 +9,32 @@ from .serializer import CommentSerializer, GroupSerializer, PostSerializer
 
 class AuthorPermissionMixin:
     def handle_author_permission(self, instance, request):
-        response = check_author(instance, request)
-        if response:
-            return response
+        if instance.author != request.user:
+            return Response(status=status.HTTP_403_FORBIDDEN)
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         response = self.handle_author_permission(instance, request)
-        if response:
-            return response
-        serializer = self.get_serializer(
-            instance, data=request.data, partial=partial
+        if not response:
+            serializer = self.get_serializer(
+                instance, data=request.data, partial=partial
+            )
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+        return (
+            response
+            or Response(serializer.data, status=status.HTTP_200_OK)
         )
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         response = self.handle_author_permission(instance, request)
-        if response:
-            return response
-        instance.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-def check_author(instance, request):
-    if instance.author != request.user:
-        return Response(status=status.HTTP_403_FORBIDDEN)
-    return None
+        if not response:
+            instance.delete()
+        return (
+            response or Response(status=status.HTTP_204_NO_CONTENT)
+        )
 
 
 class PostViewSet(AuthorPermissionMixin, viewsets.ModelViewSet):
@@ -60,8 +56,8 @@ class CommentViewSet(AuthorPermissionMixin, viewsets.ModelViewSet):
         return get_object_or_404(Post, pk=post_id)
 
     def get_queryset(self):
-        post_id = self.get_post_object_or_404()
-        return Comment.objects.select_related('post').filter(post_id=post_id)
+        post = self.get_post_object_or_404()
+        return post.comments.all()
 
     def perform_create(self, serializer):
         post = self.get_post_object_or_404()

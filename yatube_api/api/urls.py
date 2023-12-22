@@ -3,7 +3,8 @@ from rest_framework.authtoken import views
 from rest_framework.routers import DefaultRouter
 
 from .views import CommentViewSet, GroupViewSet, PostViewSet
-from .variables import API_VERSION
+
+API_VERSION = 'v1'
 
 router = DefaultRouter()
 router.register('posts', PostViewSet)
